@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -86,7 +88,8 @@ class ClipLoss(nn.Module):
         self.prev_num_logits = 0
         self.labels = {}
 
-    def forward(self, image_features, text_features, logit_scale, output_dict=False):
+    def forward(self, image_features, text_features, logit_scale, output_dict=False, tokenized_text=None):
+        # tokenized text is used to calculate proper labels for same captions
         device = image_features.device
         if self.world_size > 1:
             all_image_features, all_text_features = gather_features(
@@ -105,20 +108,28 @@ class ClipLoss(nn.Module):
 
         # calculated ground-truth and cache if enabled
         num_logits = logits_per_image.shape[0]
-        if self.prev_num_logits != num_logits or device not in self.labels:
-            labels = torch.arange(num_logits, device=device, dtype=torch.long)
-            if self.world_size > 1 and self.local_loss:
-                labels = labels + num_logits * self.rank
-            if self.cache_labels:
-                self.labels[device] = labels
-                self.prev_num_logits = num_logits
+        if tokenized_text:
+            labels = get_labels_for_repeating_captions(tokenized_text)
         else:
-            labels = self.labels[device]
+            if self.prev_num_logits != num_logits or device not in self.labels:
+                labels = torch.arange(num_logits, device=device, dtype=torch.long)
+                if self.world_size > 1 and self.local_loss:
+                    labels = labels + num_logits * self.rank
+                if self.cache_labels:
+                    self.labels[device] = labels
+                    self.prev_num_logits = num_logits
+            else:
+                labels = self.labels[device]
 
         total_loss = (
                              F.cross_entropy(logits_per_image, labels) +
                              F.cross_entropy(logits_per_text, labels)
                      ) / 2
+
+        if tokenized_text:
+            # if we use soft distribution as target we would like to subtract the entropy of that distribution
+            # so that the loss of perfect prediction would be 0.
+            total_loss = total_loss - calculate_entropy(labels)
 
         return {"contrastive_loss": total_loss} if output_dict else total_loss
 
@@ -163,3 +174,27 @@ class CoCaLoss(ClipLoss):
             return {"contrastive_loss": clip_loss, "caption_loss": caption_loss}
 
         return clip_loss, caption_loss
+
+
+def get_labels_for_repeating_captions(tokenized_text: torch.Tensor):
+    bs = tokenized_text.shape[0]
+    hashable = [tuple(el) for el in tokenized_text]
+    d = defaultdict(list)
+    for i, tpl in enumerate(hashable):
+        d[tpl].append(i)
+
+    labels = torch.zeros((bs, bs)).to(tokenized_text.device)
+    for same_captions_elem in d:
+        for caption_ind in same_captions_elem:
+            labels[caption_ind][same_captions_elem] = 1.
+
+    normalized_labels = labels / labels.sum(dim=-1, keepdim=True)
+
+    return normalized_labels
+
+
+def calculate_entropy(labels_tensor: torch.Tensor):
+    entropy = -torch.log(labels_tensor) * labels_tensor
+    entropy = torch.nan_to_num(entropy).sum(dim=-1)
+    mean_entropy = entropy.mean()
+    return mean_entropy

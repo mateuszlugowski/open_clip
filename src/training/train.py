@@ -96,7 +96,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, args
             with autocast():
                 model_out = model(images, texts)
                 logit_scale = model_out["logit_scale"]
-                losses = loss(**model_out, output_dict=True)
+                if args.label_normalization:
+                    losses = loss(**model_out, output_dict=True, tokenized_text=texts)
+                else:
+                    losses = loss(**model_out, output_dict=True)
 
                 total_loss = sum(losses.values())
                 losses["loss"] = total_loss
@@ -104,6 +107,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, args
             backward(total_loss, scaler)
         else:
             # First, cache the features without any gradient tracking.
+            #
             with torch.no_grad():
                 with autocast():
                     model_out = model(images, texts)
@@ -134,7 +138,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, args
                     logit_scale = model_out.pop("logit_scale")
                     for key, val in accum_features:
                         accumulated = accum_features[key]
-                        accumulated = accumulated[:j] +  [model_out[key]] + accumulated[j + 1:]
+                        accumulated = accumulated[:j] + [model_out[key]] + accumulated[j + 1:]
                     losses = loss(**accumulated, logit_scale=logit_scale, output_dict=True)
                     total_loss = sum(losses.values())
                     losses["loss"] = total_loss

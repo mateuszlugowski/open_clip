@@ -404,6 +404,9 @@ def parse_args(args):
         action="store_true",
         help="If true, delete previous checkpoint after storing a new one."
     )
+    parser.add_argument(
+        "--label_normalization"
+    )
     args = parser.parse_args(args)
 
     # If some params are not passed, we use the default values based on model name.
