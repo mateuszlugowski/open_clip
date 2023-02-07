@@ -27,6 +27,8 @@ try:
 except ImportError:
     hvd = None
 
+from wise_vision2.utils import initialize_clearml
+
 from open_clip import create_model_and_transforms, trace_model, get_tokenizer, create_loss
 from training.data import get_data
 from training.distributed import is_master, init_distributed_device, broadcast_object
@@ -363,6 +365,8 @@ def main(args):
             wandb.watch(model, log='all')
         wandb.save(params_file)
         logging.debug('Finished loading wandb.')
+
+    initialize_clearml(project_name='OpenCLIP', task_name=args.name)
 
     if 'train' not in data:
         evaluate(model, data, start_epoch, args, writer)
