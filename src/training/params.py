@@ -405,7 +405,7 @@ def parse_args(args):
         help="If true, delete previous checkpoint after storing a new one."
     )
     parser.add_argument(
-        "--label_normalization",
+        "--label-normalization",
         default=False,
         action="store_true",
         help="If true, labels for the same captions within batch will be normalized"
