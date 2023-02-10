@@ -179,17 +179,16 @@ class CoCaLoss(ClipLoss):
 def get_labels_for_repeating_captions(tokenized_text: torch.Tensor, world_size: int):
     if world_size > 1:
         tokenized_text = torch.cat(torch.distributed.nn.all_gather(tokenized_text), dim=0)
-    print(tokenized_text.shape)
     bs = tokenized_text.shape[0]
-    hashable = [tuple(el) for el in tokenized_text]
+    hashable = [tuple(el.cpu().numpy()) for el in tokenized_text]
     d = defaultdict(list)
     for i, tpl in enumerate(hashable):
         d[tpl].append(i)
 
     labels = torch.zeros((bs, bs)).to(tokenized_text.device)
     for same_captions_elem in d:
-        for caption_ind in same_captions_elem:
-            labels[caption_ind][same_captions_elem] = 1.
+        for caption_ind in d[same_captions_elem]:
+            labels[caption_ind][d[same_captions_elem]] = 1.
 
     normalized_labels = labels / labels.sum(dim=-1, keepdim=True)
 
