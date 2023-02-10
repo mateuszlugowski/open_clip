@@ -126,7 +126,7 @@ class ClipLoss(nn.Module):
                              F.cross_entropy(logits_per_text, labels)
                      ) / 2
 
-        if tokenized_text:
+        if tokenized_text is not None:
             # if we use soft distribution as target we would like to subtract the entropy of that distribution
             # so that the loss of perfect prediction would be 0.
             total_loss = total_loss - calculate_entropy(labels)
