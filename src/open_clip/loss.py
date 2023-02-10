@@ -109,7 +109,7 @@ class ClipLoss(nn.Module):
         # calculated ground-truth and cache if enabled
         num_logits = logits_per_image.shape[0]
         if tokenized_text is not None:
-            labels = get_labels_for_repeating_captions(tokenized_text)
+            labels = get_labels_for_repeating_captions(tokenized_text, self.world_size)
         else:
             if self.prev_num_logits != num_logits or device not in self.labels:
                 labels = torch.arange(num_logits, device=device, dtype=torch.long)
@@ -176,7 +176,10 @@ class CoCaLoss(ClipLoss):
         return clip_loss, caption_loss
 
 
-def get_labels_for_repeating_captions(tokenized_text: torch.Tensor):
+def get_labels_for_repeating_captions(tokenized_text: torch.Tensor, world_size: int):
+    if world_size > 1:
+        tokenized_text = torch.cat(torch.distributed.nn.all_gather(tokenized_text), dim=0)
+    print(tokenized_text.shape)
     bs = tokenized_text.shape[0]
     hashable = [tuple(el) for el in tokenized_text]
     d = defaultdict(list)
