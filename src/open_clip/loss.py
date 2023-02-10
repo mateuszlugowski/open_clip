@@ -108,7 +108,7 @@ class ClipLoss(nn.Module):
 
         # calculated ground-truth and cache if enabled
         num_logits = logits_per_image.shape[0]
-        if tokenized_text:
+        if tokenized_text is not None:
             labels = get_labels_for_repeating_captions(tokenized_text)
         else:
             if self.prev_num_logits != num_logits or device not in self.labels:
