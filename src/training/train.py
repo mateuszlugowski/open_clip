@@ -136,7 +136,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, args
                 with autocast():
                     model_out = model(images, texts)
                     logit_scale = model_out.pop("logit_scale")
-                    for key, val in accum_features:
+                    for key in accum_features:
                         accumulated = accum_features[key]
                         accumulated = accumulated[:j] + [model_out[key]] + accumulated[j + 1:]
                     losses = loss(**accumulated, logit_scale=logit_scale, output_dict=True)
