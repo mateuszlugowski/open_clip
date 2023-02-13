@@ -134,7 +134,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, args
                 images = accum_images[j]
                 texts = accum_texts[j]
                 with autocast():
-                    model_out = model(images, texts, output_dict=True)
+                    model_out = model(images, texts)
                     logit_scale = model_out.pop("logit_scale")
                     for key, val in accum_features:
                         accumulated = accum_features[key]
